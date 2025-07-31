@@ -16,8 +16,8 @@ This example requires running both a server and ngrok tunnel in **two separate t
 ### 1. Clone this repository
 
 ```bash
-git clone https://github.com/pipecat-ai/quickstart-phone-bot.git
-cd quickstart-phone-bot
+git clone https://github.com/pipecat-ai/pipecat-quickstart-phone-bot.git
+cd pipecat-quickstart-phone-bot
 ```
 
 ### Terminal 1: Start ngrok and Configure Twilio
@@ -53,7 +53,7 @@ cd quickstart-phone-bot
 
 1. Set up a virtual environment
 
-   From the `examples/phone-bot-twilio` directory, run:
+   From the `pipecat-quickstart-phone-bot` directory, run:
 
    ```bash
    python -m venv .venv
