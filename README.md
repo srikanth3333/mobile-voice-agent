@@ -60,7 +60,7 @@ cd pipecat-quickstart-phone-bot
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    ```
 
-   > Using `uv`? Create your venv using: `uv venv && source .venv/bin/activate`.
+   > Using `uv`? Create your venv using: `uv venv && source .venv/bin/activate`
 
 2. Install dependencies
 
@@ -68,7 +68,7 @@ cd pipecat-quickstart-phone-bot
    pip install -r requirements.txt
    ```
 
-   > Using `uv`? Install requirements using: `uv pip install -r requirements.txt`.
+   > Using `uv`? Install requirements using: `uv pip install -r requirements.txt`
 
 3. Configure environment variables
 
@@ -93,6 +93,8 @@ cd pipecat-quickstart-phone-bot
    ```bash
    python bot.py --transport twilio --proxy your_ngrok.ngrok.io
    ```
+
+   > Using `uv`? Run using: `uv run bot.py --transport twilio --proxy your_ngrok.ngrok.io`
 
 ### Test Your Phone Bot
 
