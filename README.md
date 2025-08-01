@@ -91,7 +91,7 @@ cd pipecat-quickstart-phone-bot
 4. Run the Application
 
    ```bash
-   python server.py
+   python bot.py
    ```
 
 ### Test Your Phone Bot
