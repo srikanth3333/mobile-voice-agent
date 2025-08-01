@@ -13,7 +13,7 @@ Learn how to connect your Pipecat bot to a phone number so users can call and ha
 
 This example requires running both a server and ngrok tunnel in **two separate terminal windows**.
 
-### 1. Clone this repository
+### Clone this repository
 
 ```bash
 git clone https://github.com/pipecat-ai/pipecat-quickstart-phone-bot.git
@@ -23,6 +23,7 @@ cd pipecat-quickstart-phone-bot
 ### Terminal 1: Start ngrok and Configure Twilio
 
 1. Start ngrok:
+
    In a new terminal, start ngrok to tunnel the local server:
 
    ```bash
@@ -51,26 +52,7 @@ cd pipecat-quickstart-phone-bot
 
 ### Terminal 2: Server Setup
 
-1. Set up a virtual environment
-
-   From the `pipecat-quickstart-phone-bot` directory, run:
-
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-
-   > Using `uv`? Create your venv using: `uv sync`
-
-2. Install dependencies
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-   > Using `uv`? Dependencies are already installed from the previous step.
-
-3. Configure environment variables
+1. Configure environment variables
 
    Create a `.env` file:
 
@@ -88,7 +70,17 @@ cd pipecat-quickstart-phone-bot
 
    > Optional: Add your `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` to enable auto-hangup.
 
-4. Run the Application
+2. Set up a virtual environment and install dependencies:
+
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+   > Using `uv`? Create your venv using: `uv sync`
+
+3. Run the Application
 
    ```bash
    python bot.py --transport twilio --proxy your_ngrok.ngrok.io
