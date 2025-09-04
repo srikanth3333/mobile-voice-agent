@@ -5,6 +5,7 @@ Learn how to connect your Pipecat bot to a phone number so users can call and ha
 ## Prerequisites
 
 - Python 3.10+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) package manager installed
 - [ngrok](https://ngrok.com/docs/getting-started/) (for tunneling)
 - [Twilio Account](https://www.twilio.com/login) and [phone number](https://help.twilio.com/articles/223135247-How-to-Search-for-and-Buy-a-Twilio-Phone-Number-from-Console)
 - AI Service API keys for: [Deepgram](https://console.deepgram.com/signup), [OpenAI](https://auth.openai.com/create-account), and [Cartesia](https://play.cartesia.ai/sign-up)
@@ -42,14 +43,6 @@ cd pipecat-quickstart-phone-bot
      - Ensure "HTTP POST" is selected
    - Click Save at the bottom of the page
 
-3. Configure streams.xml:
-   - Copy the template file to create your local version:
-     ```bash
-     cp templates/streams.xml.template templates/streams.xml
-     ```
-   - In `templates/streams.xml`, replace `<your_server_url>` with your ngrok URL (without `https://`)
-   - The final URL should look like: `wss://abc123.ngrok.io/ws`
-
 ### Terminal 2: Server Setup
 
 1. Configure environment variables
@@ -73,20 +66,14 @@ cd pipecat-quickstart-phone-bot
 2. Set up a virtual environment and install dependencies:
 
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
+   uv sync
    ```
-
-   > Using `uv`? Create your venv using: `uv sync`
 
 3. Run the Application
 
    ```bash
-   python bot.py --transport twilio --proxy your_ngrok.ngrok.io
+   uv run bot.py --transport twilio --proxy your_ngrok.ngrok.io
    ```
-
-   > Using `uv`? Run using: `uv run bot.py --transport twilio --proxy your_ngrok.ngrok.io`
 
    > 💡 First run note: The initial startup may take ~15 seconds as Pipecat downloads required models, like the Silero VAD model.
 
@@ -95,6 +82,10 @@ cd pipecat-quickstart-phone-bot
 **Call your Twilio phone number** to start talking with your AI bot! 🚀
 
 > 💡 **Tip**: Check your server terminal for debug logs showing Pipecat's internal workings.
+
+## Deploy to Pipecat Cloud
+
+You can deploy your bot to Pipecat Cloud. For guidance, follow the steps outlining in the [pipecat-quickstart's Deployment section](https://docs.pipecat.ai/getting-started/quickstart#step-2%3A-deploy-to-production).
 
 ## Troubleshooting
 
