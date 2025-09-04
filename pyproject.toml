@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Twilio phone bot example using Pipecat"
 requires-python = ">=3.10"
 dependencies = [
-    "pipecat-ai[cartesia,openai,silero,deepgram,websocket,runner]>=0.0.77",
+    "pipecat-ai[artesia,openai,silero,deepgram,websocket,runner]>=0.0.83",
+    "pipecatcloud>=0.2.4"
+
 ]
 
 [dependency-groups]

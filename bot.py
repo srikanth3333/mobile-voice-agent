@@ -19,7 +19,7 @@ connection.
 
 Run the bot using::
 
-    python bot.py -t twilio -x your_ngrok.ngrok.io
+    uv run bot.py -t twilio -x your_ngrok.ngrok.io
 """
 
 import os
