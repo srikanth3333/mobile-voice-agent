@@ -1,84 +1,78 @@
 #
-# Copyright (c) 2024–2025, Daily
+# Copyright (c) 2025, Daily
 #
 # SPDX-License-Identifier: BSD 2-Clause License
 #
 
-"""Pipecat Twilio Phone Example.
-
-The example runs a simple voice AI bot that you can connect to using a
-phone via Twilio.
-
-Required AI services:
-- Deepgram (Speech-to-Text)
-- OpenAI (LLM)
-- Cartesia (Text-to-Speech)
-
-The example connects between client and server using a Twilio websocket
-connection.
-
-Run the bot using::
-
-    uv run bot.py -t twilio -x your_ngrok.ngrok.io
-"""
-
 import os
+import sys
 
 from dotenv import load_dotenv
 from loguru import logger
 from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.frames.frames import LLMRunFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
-from pipecat.processors.frameworks.rtvi import RTVIConfig, RTVIObserver, RTVIProcessor
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import parse_telephony_websocket
 from pipecat.serializers.twilio import TwilioFrameSerializer
-from pipecat.services.cartesia.tts import CartesiaTTSService
+# from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.transports.base_transport import BaseTransport
-from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams, FastAPIWebsocketTransport
+from pipecat.transports.websocket.fastapi import (
+    FastAPIWebsocketParams,
+    FastAPIWebsocketTransport,
+)
+from pipecat.services.azure.tts import AzureTTSService
 
 load_dotenv(override=True)
 
+logger.remove(0)
+logger.add(sys.stderr, level="DEBUG")
 
-async def run_bot(transport: BaseTransport):
-    logger.info(f"Starting bot")
+
+async def run_bot(transport: BaseTransport, handle_sigint: bool):
+    llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
 
     stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
 
-    tts = CartesiaTTSService(
-        api_key=os.getenv("CARTESIA_API_KEY"),
-        voice_id="71a7ad14-091c-4e8e-a314-022ece01c121",  # British Reading Lady
-    )
+    # tts = CartesiaTTSService(
+    #     api_key=os.getenv("CARTESIA_API_KEY"),
+    #     voice_id="71a7ad14-091c-4e8e-a314-022ece01c121",  # British Reading Lady
+    # )
 
-    llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
+    tts = AzureTTSService(
+        api_key=os.getenv("AZURE_SPEECH_API_KEY"),
+        region=os.getenv("AZURE_SPEECH_REGION", "eastus"),
+        voice="en-US-JennyNeural",
+        language="en-US"
+    )
 
     messages = [
         {
             "role": "system",
-            "content": "You are a friendly AI assistant. Respond naturally and keep your answers conversational.",
+            "content": (
+                "You are a friendly assistant making an outbound phone call. Your responses will be read aloud, "
+                "so keep them concise and conversational. Avoid special characters or formatting. "
+                "Begin by politely greeting the person and explaining why you're calling."
+            ),
         },
     ]
 
     context = OpenAILLMContext(messages)
     context_aggregator = llm.create_context_aggregator(context)
 
-    rtvi = RTVIProcessor(config=RTVIConfig(config=[]))
-
     pipeline = Pipeline(
         [
-            transport.input(),  # Transport user input
-            rtvi,  # RTVI processor
-            stt,
-            context_aggregator.user(),  # User responses
+            transport.input(),  # Websocket input from client
+            stt,  # Speech-To-Text
+            context_aggregator.user(),
             llm,  # LLM
-            tts,  # TTS
-            transport.output(),  # Transport bot output
-            context_aggregator.assistant(),  # Assistant spoken responses
+            tts,  # Text-To-Speech
+            transport.output(),  # Websocket output to client
+            context_aggregator.assistant(),
         ]
     )
 
@@ -90,32 +84,55 @@ async def run_bot(transport: BaseTransport):
             enable_metrics=True,
             enable_usage_metrics=True,
         ),
-        observers=[RTVIObserver(rtvi)],
     )
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
-        logger.info(f"Client connected")
-        # Kick off the conversation.
-        messages.append({"role": "system", "content": "Say hello and briefly introduce yourself."})
-        await task.queue_frame(LLMRunFrame())
+        # Kick off the outbound conversation, waiting for the user to speak first
+        logger.info("Starting outbound call conversation")
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
-        logger.info(f"Client disconnected")
+        logger.info("Outbound call ended")
         await task.cancel()
 
-    runner = PipelineRunner(handle_sigint=False)
+    runner = PipelineRunner(handle_sigint=handle_sigint)
 
     await runner.run(task)
 
 
 async def bot(runner_args: RunnerArguments):
-    """Main bot entry point for the bot starter."""
+    """Main bot entry point compatible with Pipecat Cloud."""
+    
+    print("Bot function started, waiting for Twilio data...")
+    
+    try:
+        # Add timeout and better error handling
+        import asyncio
+        
+        print("Calling parse_telephony_websocket...")
+        transport_type, call_data = await asyncio.wait_for(
+            parse_telephony_websocket(runner_args.websocket),
+            timeout=30.0  # 30 second timeout
+        )
+        logger.info(f"Auto-detected transport: {transport_type}")
+        logger.info(f"Call data: {call_data}")
+        
+    except asyncio.TimeoutError:
+        logger.error("Timeout waiting for Twilio Media Stream data")
+        return
+    except StopAsyncIteration:
+        logger.error("No data received from WebSocket - expecting Twilio Media Stream")
+        return
+    except Exception as e:
+        logger.error(f"Error parsing telephony WebSocket: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return
 
-    transport_type, call_data = await parse_telephony_websocket(runner_args.websocket)
-    logger.info(f"Auto-detected transport: {transport_type}")
-
+    # Rest of your bot function...
+    print("Successfully parsed Twilio data, continuing with bot setup...")
+    
     serializer = TwilioFrameSerializer(
         stream_sid=call_data["stream_id"],
         call_sid=call_data["call_id"],
@@ -134,10 +151,6 @@ async def bot(runner_args: RunnerArguments):
         ),
     )
 
-    await run_bot(transport)
+    handle_sigint = runner_args.handle_sigint
 
-
-if __name__ == "__main__":
-    from pipecat.runner.run import main
-
-    main()
+    await run_bot(transport, handle_sigint)
