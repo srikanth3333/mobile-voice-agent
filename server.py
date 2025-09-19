@@ -68,6 +68,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy",
+        "active_connections": len(tasks),
+        "config_method": "url_encoded"
+    }
+
 @app.post("/start")
 async def initiate_outbound_call(request: Request) -> JSONResponse:
     """Handle outbound call request and initiate call via Twilio."""
