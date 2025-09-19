@@ -76,7 +76,6 @@ app.add_middleware(
 async def health():
     return {
         "status": "healthy",
-        "active_connections": len(tasks),
         "config_method": "url_encoded"
     }
 
