@@ -20,14 +20,18 @@ def generate_twiml(host: str, body_data: dict = None) -> str:
     # Check if we're in production
     base_url = os.getenv("BASE_URL")
     if base_url:
-        # Production - use BASE_URL
-        websocket_url = base_url.replace("https://", "wss://") + "/ws"
+        # Production - use BASE_URL and force HTTPS/WSS
+        if base_url.startswith("http://"):
+            websocket_url = base_url.replace("http://", "wss://") + "/ws"
+        else:
+            websocket_url = base_url.replace("https://", "wss://") + "/ws"
     else:
         # Local - use ngrok URL
         ngrok_url = os.getenv("NGROK_URL")
         if ngrok_url:
             websocket_url = ngrok_url.replace("https://", "wss://").replace("http://", "ws://") + "/ws"
         else:
+            # Force WSS even for IP
             websocket_url = f"wss://{host}/ws"
     
     print(f"DEBUG - WebSocket URL: {websocket_url}")
