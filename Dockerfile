@@ -1,16 +1,20 @@
-FROM dailyco/pipecat-base:latest
+FROM python:3.11-slim
 
-# Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE=1
+WORKDIR /app
 
-# Copy from the cache instead of linking since it's a mounted volume
-ENV UV_LINK_MODE=copy
+# Copy requirements and install dependencies
+COPY pyproject.toml ./
 
-# Install the project's dependencies using the lockfile and settings
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev
+# Install uv and dependencies
+RUN pip install uv
+RUN uv venv
+RUN uv sync --no-dev
 
-# Copy the application code
-COPY ./bot.py bot.py
+# Copy application code
+COPY . .
+
+# Expose port
+EXPOSE 8000
+
+# Run the application
+CMD [".venv/bin/uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
