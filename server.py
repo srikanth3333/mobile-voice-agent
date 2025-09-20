@@ -84,14 +84,24 @@ async def initiate_outbound_call(request: Request) -> JSONResponse:
 
         phone_number = str(data["phone_number"])
         body_data = data.get("body", {})
+        
+        # Extract configuration parameters and add them to body_data
+        config_params = {
+            "llm_context": data.get("llm_context", "You are a friendly assistant making an outbound phone call. Your responses will be read aloud, so keep them concise and conversational. Avoid special characters or formatting. Begin by politely greeting the person and explaining why you're calling."),
+            "session_duration": data.get("session_duration", 180),
+            "idle_warning_timeout": data.get("idle_warning_timeout", 8),
+            "idle_disconnect_timeout": data.get("idle_disconnect_timeout", 30)
+        }
+        
+        # Merge config into body_data
+        body_data.update(config_params)
+        print(f"Body data with config: {list(body_data.keys())}")
 
-        # Check if we're in production
+        # Rest of your existing code...
         base_url = os.getenv("BASE_URL")
         if base_url:
-            # Production
             twiml_url = f"{base_url}/twiml"
         else:
-            # Local
             ngrok_url = os.getenv("NGROK_URL")
             if not ngrok_url:
                 raise HTTPException(status_code=500, detail="NGROK_URL not set")
@@ -114,7 +124,7 @@ async def initiate_outbound_call(request: Request) -> JSONResponse:
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
+    
 @app.post("/twiml")
 async def get_twiml(request: Request) -> HTMLResponse:
     """Return TwiML instructions for connecting call to WebSocket."""
@@ -140,33 +150,104 @@ async def get_twiml(request: Request) -> HTMLResponse:
         print(f"Error generating TwiML: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate TwiML: {str(e)}")
 
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """Handle WebSocket connection from Twilio Media Streams."""
     try:
         await websocket.accept()
         print("WebSocket connection accepted for outbound call")
-        print(f"WebSocket headers: {dict(websocket.headers)}")
-        print(f"WebSocket query params: {dict(websocket.query_params)}")
         
-        # Wait a moment to see if we receive any initial data
+        # Wait for the actual start message with call SID and custom parameters
         import asyncio
-        print("Waiting for initial WebSocket data...")
+        import json
+        print("Waiting for Twilio start message...")
         
-        try:
-            # Try to receive the first message with a timeout
-            message = await asyncio.wait_for(websocket.receive(), timeout=5.0)
-            print(f"Received first WebSocket message: {message}")
-        except asyncio.TimeoutError:
-            print("No initial message received within 5 seconds")
-        except Exception as e:
-            print(f"Error receiving initial message: {e}")
+        call_sid = None
+        stream_sid = None
+        custom_parameters = {}
+        max_attempts = 10
+        attempt = 0
+        start_message_data = None
+        
+        while attempt < max_attempts and call_sid is None:
+            try:
+                message = await asyncio.wait_for(websocket.receive(), timeout=2.0)
+                print(f"Received WebSocket message #{attempt + 1}: {message.get('text', '')[:200]}...")
+                
+                if message.get("type") == "websocket.receive" and "text" in message:
+                    try:
+                        data = json.loads(message["text"])
+                        
+                        # Look for the start event which contains call SID and parameters
+                        if data.get("event") == "start":
+                            start_data = data.get("start", {})
+                            call_sid = start_data.get("callSid")
+                            stream_sid = start_data.get("streamSid")
+                            custom_parameters = start_data.get("customParameters", {})
+                            start_message_data = data  # Store the entire start message
+                            
+                            print(f"Found call SID: {call_sid}")
+                            print(f"Found stream SID: {stream_sid}")
+                            print(f"Found custom parameters: {list(custom_parameters.keys())}")
+                            break
+                        elif data.get("event") == "connected":
+                            print("Received connected event, waiting for start event...")
+                            
+                        attempt += 1
+                    except json.JSONDecodeError as e:
+                        print(f"Failed to parse JSON: {e}")
+                        attempt += 1
+                        
+            except asyncio.TimeoutError:
+                print(f"Timeout on attempt {attempt + 1}, retrying...")
+                attempt += 1
+            except Exception as e:
+                print(f"Error receiving message on attempt {attempt + 1}: {e}")
+                attempt += 1
 
         from bot import bot
         from pipecat.runner.types import WebSocketRunnerArguments
 
-        runner_args = WebSocketRunnerArguments(websocket=websocket)
+        # Create a new WebSocket that includes the start message we already consumed
+        class ReplayWebSocket:
+            def __init__(self, original_websocket, start_message):
+                self.original_websocket = original_websocket
+                self.start_message = start_message
+                self.start_sent = False
+                
+            async def accept(self):
+                # Already accepted
+                pass
+                
+            async def receive(self):
+                if not self.start_sent and self.start_message:
+                    self.start_sent = True
+                    return {"type": "websocket.receive", "text": json.dumps(self.start_message)}
+                return await self.original_websocket.receive()
+                
+            async def send_text(self, data):
+                return await self.original_websocket.send_text(data)
+                
+            async def close(self):
+                return await self.original_websocket.close()
+                
+            def __getattr__(self, name):
+                return getattr(self.original_websocket, name)
+
+        # Create replay websocket that will replay the start message
+        replay_websocket = ReplayWebSocket(websocket, start_message_data)
+        
+        runner_args = WebSocketRunnerArguments(websocket=replay_websocket)
         runner_args.handle_sigint = False
+        
+        # Set custom parameters as body data
+        runner_args.body = custom_parameters
+        runner_args.call_data = {
+            "stream_id": stream_sid,
+            "call_id": call_sid
+        }
+        print(f"Setting runner_args.body with custom parameters: {list(custom_parameters.keys())}")
 
         print("About to call bot() function...")
         await bot(runner_args)
@@ -177,6 +258,7 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"Full traceback: {traceback.format_exc()}")
     finally:
         print("WebSocket connection handler completed")
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
