@@ -68,6 +68,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+async def health_check():
+    return {"status": "healthy", "message": "Twilio phone bot is running"}
+
 @app.post("/start")
 async def initiate_outbound_call(request: Request) -> JSONResponse:
     """Handle outbound call request and initiate call via Twilio."""
@@ -175,6 +179,6 @@ async def websocket_endpoint(websocket: WebSocket):
         print("WebSocket connection handler completed")
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "800"))
+    port = int(os.getenv("PORT", "8000"))
     print(f"Starting Twilio outbound chatbot server on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
